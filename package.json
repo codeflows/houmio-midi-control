@@ -1,0 +1,14 @@
+{
+  "name": "houmio-midi-control",
+  "version": "0.0.1",
+  "description": "Control Houm.io lighting with a MIDI controller",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jari Aarniala",
+  "license": "MIT",
+  "dependencies": {
+    "midi": "^0.9.0"
+  }
+}
