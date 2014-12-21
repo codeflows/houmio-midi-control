@@ -1,7 +1,7 @@
 houmio-midi-control
 ===================
 
-Control dimmable Houm.io lights with a standard MIDI controller.
+Control dimmable [Houm.io](http://houm.io/) lights with a standard MIDI controller.
 
 ## Usage
 
@@ -21,3 +21,7 @@ Then, twist the controller knobs on your MIDI controller!
 * Light configuration is cumbersome
 * Only supports one light (since the controller number is ignored for now)
 * Only tested on OS X
+
+## References
+
+https://github.com/houmio/houmio-api-reference
