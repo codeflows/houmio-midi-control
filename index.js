@@ -21,8 +21,19 @@ function putLightState(state) {
   })
 }
 
-function isControlMessage(message) {
-  return (message[0] >> 4) === 0xb
+function isControlMessage(midiMessage) {
+  return (midiMessage[0] >> 4) === 0xb
+}
+
+function toHoumioLightState(midiMessage) {
+  // MIDI gives us 0-127, Houmio expects 0-255
+  var midiControllerValue = midiMessage[2]
+  var brightness = midiControllerValue * 2
+  return {
+    _id: lightId,
+    on: brightness > 0,
+    bri: brightness
+  }
 }
 
 var input = new midi.input()
@@ -30,18 +41,10 @@ var input = new midi.input()
 var midiMessages =
   Bacon.fromEventTarget(input, 'message', function(deltaTime, message) { return message })
 
-var controlMessages = midiMessages.filter(isControlMessage)
-var houmioLightState = controlMessages.map(function(message) {
-  // MIDI gives us 0-127, Houmio expects 0-255
-  var midiControllerValue = message[2]
-  var brightness = midiControllerValue * 2
-  return {
-    _id: lightId,
-    on: brightness > 0,
-    bri: brightness
-  }
-})
-
-houmioLightState.throttle(500).onValue(putLightState)
+midiMessages
+  .filter(isControlMessage)
+  .map(toHoumioLightState)
+  .throttle(500)
+  .onValue(putLightState)
 
 input.openPort(0)
