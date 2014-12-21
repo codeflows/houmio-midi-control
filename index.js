@@ -24,13 +24,13 @@ var input = new midi.input()
 input.on('message', function(deltaTime, message) {
   var isControlMessage = (message[0] >> 4) === 0xb;
   if(isControlMessage) {
-    var controllerNumber = message[1];
     var controllerValue = message[2];
-    console.log('Set brightness to', controllerValue);
+    var brightness = controllerValue * 2;
+    console.log('Set brightness to', brightness);
     putLightState({
       _id: lightId,
-      on: controllerValue > 0,
-      bri: controllerValue
+      on: brightness > 0,
+      bri: brightness
     });
   }
 });
