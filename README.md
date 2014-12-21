@@ -7,11 +7,11 @@ Control dimmable [Houm.io](http://houm.io/) lights with a standard MIDI controll
 
 1. Plug-in a MIDI controller that can send MIDI control messages (I have an [Akai MPK mini](http://www.akaipro.com/product/mpkmini))
 2. Find out the `_id` of your dimmable Houm.io light from the list at: `https://houm.herokuapp.com/api/site/<YOUR-SITEKEY>/light`
-3. Install this app:
+3. Clone & run this app:
 ```
-$ npm install
-$ export HORSELIGHTS_SITEKEY=<YOUR-SITEKEY>
-$ node index.js <_id>
+npm install
+export HORSELIGHTS_SITEKEY=<YOUR-SITEKEY>
+node index.js <_id>
 ```
 Then, twist the controller knobs on your MIDI controller!
 
