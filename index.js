@@ -1,3 +1,7 @@
+var midi = require('midi')
+var request = require('request')
+var Bacon = require('baconjs')
+
 var siteKey = process.env.HORSELIGHTS_SITEKEY
 var lightId = process.argv[2]
 
@@ -7,32 +11,37 @@ if(siteKey == null || lightId == null) {
 
 console.log("Controlling lightId", lightId);
 
-var midi = require('midi')
-var request = require('request')
-
-function putLightState(message) {
+function putLightState(state) {
+  console.log("Putting state", state)
   var url = "https://houm.herokuapp.com/api/site/" + siteKey + "/light/state"
-  request({ method: 'PUT', url: url, body: message, json: true}, function (error, response, body) {
+  request({ method: 'PUT', url: url, body: state, json: true }, function (error, response, body) {
     if(error) {
-      console.log('Failed setting light state to', message)
+      console.log("Failed putting light state to", state)
     }
-  });
+  })
+}
+
+function isControlMessage(message) {
+  return (message[0] >> 4) === 0xb
 }
 
 var input = new midi.input()
 
-input.on('message', function(deltaTime, message) {
-  var isControlMessage = (message[0] >> 4) === 0xb;
-  if(isControlMessage) {
-    var controllerValue = message[2];
-    var brightness = controllerValue * 2;
-    console.log('Set brightness to', brightness);
-    putLightState({
-      _id: lightId,
-      on: brightness > 0,
-      bri: brightness
-    });
-  }
-});
+var midiMessages =
+  Bacon.fromEventTarget(input, 'message', function(deltaTime, message) { return message })
 
-input.openPort(0);
+var controlMessages = midiMessages.filter(isControlMessage)
+var houmioLightState = controlMessages.map(function(message) {
+  // MIDI gives us 0-127, Houmio expects 0-255
+  var midiControllerValue = message[2]
+  var brightness = midiControllerValue * 2
+  return {
+    _id: lightId,
+    on: brightness > 0,
+    bri: brightness
+  }
+})
+
+houmioLightState.throttle(500).onValue(putLightState)
+
+input.openPort(0)

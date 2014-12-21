@@ -9,6 +9,7 @@
   "author": "Jari Aarniala",
   "license": "MIT",
   "dependencies": {
+    "baconjs": "^0.7.41",
     "midi": "^0.9.0",
     "request": "^2.51.0"
   }
