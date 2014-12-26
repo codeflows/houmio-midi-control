@@ -19,29 +19,28 @@ var configurationFile =
     .map(JSON.parse)
 
 var configuration = configurationFile.flatMap(function(configuration) {
-  var inputPorts = listMidiInputPorts()
-  var inputPortNumber = inputPorts.indexOf(configuration.midiInputPortName)
-  if(inputPortNumber === -1) {
+  if(configuration.siteKey == null) {
+    return new Bacon.Error("siteKey missing from configuration")
+  }
+
+  var midiInputPorts = listMidiInputPorts()
+  var midiInputPortNumber = midiInputPorts.indexOf(configuration.midiInputPortName)
+  if(midiInputPortNumber === -1) {
     return new Bacon.Error(
       "Configured MIDI port \"" + configuration.midiInputPortName + "\" not found!\n" +
-      "Available ports are:\n  " + inputPorts.join("\n  ")
+      "Available ports are:\n  " + midiInputPorts.join("\n  ")
     )
   }
   return {
-    midiInputPortNumber: inputPortNumber
+    siteKey: configuration.siteKey,
+    midiInputPortNumber: midiInputPortNumber
   }
-})
-
-configuration.onValue(function(c) {
-  console.log("Running using configuration:", c)
 })
 
 configuration.onError(function(error) {
   console.log("ERROR:", error)
   process.exit(1);
 })
-
-return;
 
 function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
@@ -62,7 +61,7 @@ function toHoumioMessage(midiMessage) {
 }
 
 // TODO error handling, reconnection etc
-function houmioConnection(messagesToHoumioStream) {
+function houmioConnection(siteKey, messagesToHoumioStream) {
   var socket = new WebSocket("wss://houm.herokuapp.com")
   socket.on("open", function() {
     console.log("Connected to Houm.io")
@@ -91,10 +90,11 @@ var messagesToHoumio = midiMessages
   .filter(isControlMessage)
   .map(toHoumioMessage)
 
-var messagesFromHoumio = houmioConnection(messagesToHoumio)
+configuration.onValue(function(configuration) {
+  var messagesFromHoumio = houmioConnection(configuration.siteKey, messagesToHoumio)
+  messagesFromHoumio.onValue(function(m) {
+    console.log("Received message from Houm.io", m)
+  })
 
-messagesFromHoumio.onValue(function(m) {
-  console.log("Received message from Houm.io", m)
+  midiInput.openPort(configuration.midiInputPortNumber)
 })
-
-midiInput.openPort(Number(midiPort))
