@@ -98,13 +98,16 @@ configuration.onValue(function(configuration) {
     console.log("1) Open Houm.io UI at https://houm.herokuapp.com/site/" + configuration.siteKey)
     console.log("2) Move the dimmer you'd like to control with MIDI")
     console.log("3) Move the MIDI controller knob you'd like to assign this dimmer to.")
+
     return
+  } else {
+    var messagesToHoumio = midiMessages
+      .filter(isControlMessage)
+      .map(_.partial(toHoumioMessage, configuration.lightId))
+      .onValue(function(m) {
+        socket.send(JSON.stringify(m))
+      })
   }
-
-  var messagesToHoumio = midiMessages
-    .filter(isControlMessage)
-    .map(_.partial(toHoumioMessage, configuration.lightId))
-
 
   midiInput.openPort(configuration.midiInputPortNumber)
 })
