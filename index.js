@@ -1,16 +1,47 @@
 var midi = require("midi")
 var WebSocket = require("ws")
 var Bacon = require("baconjs")
+var fs = require("fs")
 
-var siteKey = process.env.HORSELIGHTS_SITEKEY
-var midiPort = process.argv[2]
-var lightId = process.argv[3]
+var midiInput = new midi.input()
 
-if(siteKey == null || midiPort == null || lightId == null) {
-  throw "usage: node index.js midiPort lightId (plus provide site key in env variable HORSELIGHTS_SITEKEY)"
+function listMidiInputPorts() {
+  var inputs = []
+  for(var i = 0; i < midiInput.getPortCount(); i++) {
+    inputs.push(midiInput.getPortName(i))
+  }
+  return inputs
 }
 
-console.log("Controlling lightId", lightId);
+var configurationFile =
+  Bacon
+    .fromNodeCallback(fs.readFile, "config.json")
+    .map(JSON.parse)
+
+var configuration = configurationFile.flatMap(function(configuration) {
+  var inputPorts = listMidiInputPorts()
+  var inputPortNumber = inputPorts.indexOf(configuration.midiInputPortName)
+  if(inputPortNumber === -1) {
+    return new Bacon.Error(
+      "Configured MIDI port \"" + configuration.midiInputPortName + "\" not found!\n" +
+      "Available ports are:\n  " + inputPorts.join("\n  ")
+    )
+  }
+  return {
+    midiInputPortNumber: inputPortNumber
+  }
+})
+
+configuration.onValue(function(c) {
+  console.log("Running using configuration:", c)
+})
+
+configuration.onError(function(error) {
+  console.log("ERROR:", error)
+  process.exit(1);
+})
+
+return;
 
 function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
@@ -53,10 +84,8 @@ function houmioConnection(messagesToHoumioStream) {
     .map(JSON.parse)
 }
 
-var input = new midi.input()
-
 var midiMessages =
-  Bacon.fromEventTarget(input, "message", function(deltaTime, message) { return message })
+  Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
 
 var messagesToHoumio = midiMessages
   .filter(isControlMessage)
@@ -68,4 +97,4 @@ messagesFromHoumio.onValue(function(m) {
   console.log("Received message from Houm.io", m)
 })
 
-input.openPort(Number(midiPort))
+midiInput.openPort(Number(midiPort))
