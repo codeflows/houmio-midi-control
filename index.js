@@ -2,6 +2,7 @@ var midi = require("midi")
 var WebSocket = require("ws")
 var Bacon = require("baconjs")
 var fs = require("fs")
+var _ = require("lodash")
 
 var midiInput = new midi.input()
 
@@ -19,8 +20,8 @@ var configurationFile =
     .map(JSON.parse)
 
 var configuration = configurationFile.flatMap(function(configuration) {
-  if(configuration.siteKey == null) {
-    return new Bacon.Error("siteKey missing from configuration")
+  if(configuration.siteKey == null || configuration.lightId == null) {
+    return new Bacon.Error("siteKey and lightId must be defined in config.json")
   }
 
   var midiInputPorts = listMidiInputPorts()
@@ -33,6 +34,7 @@ var configuration = configurationFile.flatMap(function(configuration) {
   }
   return {
     siteKey: configuration.siteKey,
+    lightId: configuration.lightId,
     midiInputPortNumber: midiInputPortNumber
   }
 })
@@ -46,7 +48,7 @@ function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
 }
 
-function toHoumioMessage(midiMessage) {
+function toHoumioMessage(lightId, midiMessage) {
   // MIDI gives us 0-127, Houmio expects 0-255
   var midiControllerValue = midiMessage[2]
   var brightness = midiControllerValue * 2
@@ -83,14 +85,14 @@ function houmioConnection(siteKey, messagesToHoumioStream) {
     .map(JSON.parse)
 }
 
-var midiMessages =
-  Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
-
-var messagesToHoumio = midiMessages
-  .filter(isControlMessage)
-  .map(toHoumioMessage)
-
 configuration.onValue(function(configuration) {
+  var midiMessages =
+    Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
+
+  var messagesToHoumio = midiMessages
+    .filter(isControlMessage)
+    .map(_.partial(toHoumioMessage, configuration.lightId))
+
   var messagesFromHoumio = houmioConnection(configuration.siteKey, messagesToHoumio)
   messagesFromHoumio.onValue(function(m) {
     console.log("Received message from Houm.io", m)
