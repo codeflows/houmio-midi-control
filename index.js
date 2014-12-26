@@ -66,7 +66,6 @@ function toHoumioMessage(lightId, midiMessage) {
 function houmioWebSocket(siteKey) {
   var socket = new WebSocket("wss://houm.herokuapp.com")
   socket.on("open", function() {
-    console.log("Connected to Houm.io")
     var subscribe = JSON.stringify({ command: "subscribe", data: { sitekey: siteKey } })
     socket.send(subscribe)
     Bacon.interval(3000).onValue(function() {
@@ -88,25 +87,37 @@ configuration.onValue(function(configuration) {
 
   var midiMessages =
     Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
+  var midiControlMessages = midiMessages.filter(isControlMessage)
 
   if(process.argv[2] === "learn") {
     console.log("Midi learn mode!")
 
-    console.log("1) Open Houm.io UI at https://houm.herokuapp.com/site/" + configuration.siteKey)
-    console.log("2) Move the dimmer you'd like to control with MIDI")
-    console.log("3) Move the MIDI controller knob you'd like to assign this dimmer to.")
+    console.log("Open Houm.io UI at https://houm.herokuapp.com/site/" + configuration.siteKey)
+    console.log("and move the dimmer you'd like to control with MIDI.")
 
     var dimmerTouched =
       messagesFromHoumio
         .filter(function(message) { return message.command === 'newlightstate' })
         .map(function(message) { return message.data._id })
         .skipDuplicates()
+        .log("\nGreat! Now turn the MIDI controller knob you'd like to assign to light with id")
 
-    dimmerTouched.onValue(function(m) { console.log("Touched", m) })
+    var midiControllerTurned = midiControlMessages.map(function(midiMessage) {
+      var controllerNumber = midiMessage[1]
+      return controllerNumber
+    })
+
+    var pairing =
+      dimmerTouched
+        .sampledBy(midiControllerTurned, function(a, b) { return [a, b] })
+        .skipDuplicates(_.isEqual)
+
+    pairing.onValue(function(a) {
+      console.log("Paired light " + a[0] + " with MIDI controller " + a[1])
+    })
 
   } else {
-    var messagesToHoumio = midiMessages
-      .filter(isControlMessage)
+    var messagesToHoumio = midiControlMessages
       .map(_.partial(toHoumioMessage, configuration.lightId))
       .onValue(function(m) {
         socket.send(JSON.stringify(m))
