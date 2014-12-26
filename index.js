@@ -85,9 +85,6 @@ configuration.onValue(function(configuration) {
     Bacon
       .fromEventTarget(socket, "message", function(message) { return message.data  })
       .map(JSON.parse)
-  messagesFromHoumio.onValue(function(m) {
-    console.log("Received message from Houm.io", m)
-  })
 
   var midiMessages =
     Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
@@ -99,7 +96,14 @@ configuration.onValue(function(configuration) {
     console.log("2) Move the dimmer you'd like to control with MIDI")
     console.log("3) Move the MIDI controller knob you'd like to assign this dimmer to.")
 
-    return
+    var dimmerTouched =
+      messagesFromHoumio
+        .filter(function(message) { return message.command === 'newlightstate' })
+        .map(function(message) { return message.data._id })
+        .skipDuplicates()
+
+    dimmerTouched.onValue(function(m) { console.log("Touched", m) })
+
   } else {
     var messagesToHoumio = midiMessages
       .filter(isControlMessage)
