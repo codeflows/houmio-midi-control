@@ -21,8 +21,8 @@ function readConfigurationJson() {
 }
 
 function validateConfiguration(configuration) {
-  if(configuration.siteKey == null || configuration.lightId == null) {
-    return new Bacon.Error("siteKey and lightId must be defined in config.json")
+  if(configuration.siteKey == null) {
+    return new Bacon.Error("siteKey must be defined in config.json")
   }
 
   var midiInputPorts = listMidiInputPorts()
@@ -35,7 +35,7 @@ function validateConfiguration(configuration) {
   }
   return {
     siteKey: configuration.siteKey,
-    lightId: configuration.lightId,
+    pairings: configuration.pairings,
     midiInputPortNumber: midiInputPortNumber
   }
 }
@@ -51,14 +51,15 @@ function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
 }
 
-function toHoumioMessage(lightId, midiMessage) {
+function toHoumioMessage(configuration, midiMessage) {
   // MIDI gives us 0-127, Houmio expects 0-255
+  var midiControllerNumber = midiMessage[1]
   var midiControllerValue = midiMessage[2]
   var brightness = midiControllerValue * 2
   return {
     command: "set",
     data: {
-      _id: lightId,
+      _id: configuration.pairings[midiControllerNumber.toString()],
       on: brightness > 0,
       bri: brightness
     }
@@ -120,9 +121,17 @@ configuration.onValue(function(configuration) {
     })
 
   } else {
+    console.log("Controlling Houm.io lights using MIDI", configuration)
     var messagesToHoumio = midiControlMessages
-      .map(_.partial(toHoumioMessage, configuration.lightId))
+      .filter(function(message) {
+        var controllerNumber = message[1]
+        var pairing = configuration.pairings[controllerNumber.toString()]
+        console.log("Pairing for ctrl " + controllerNumber + "=" + pairing)
+        return pairing
+      })
+      .map(_.partial(toHoumioMessage, configuration))
       .onValue(function(m) {
+        console.log("Send", m)
         socket.send(JSON.stringify(m))
       })
   }
