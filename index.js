@@ -26,21 +26,17 @@ function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
 }
 
-function toHoumioLightState(midiMessage) {
+function toHoumioMessage(midiMessage) {
   // MIDI gives us 0-127, Houmio expects 0-255
   var midiControllerValue = midiMessage[2]
   var brightness = midiControllerValue * 2
   return {
-    _id: lightId,
-    on: brightness > 0,
-    bri: brightness
-  }
-}
-
-function toHoumioWebSocketMessage(houmioLightState) {
-  return {
     command: "set",
-    data: houmioLightState
+    data: {
+      _id: lightId,
+      on: brightness > 0,
+      bri: brightness
+    }
   }
 }
 
@@ -55,14 +51,16 @@ function houmioConnection(messagesToHoumioStream) {
       socket.ping(null, {}, false)
     })
     messagesToHoumioStream.onValue(function(m) {
-      console.log("Send", m)
-      socket.send(m)
+      socket.send(JSON.stringify(m))
     })
   })
   socket.on("close", function() { console.log("Websocket closed") })
   socket.on("error", function() { console.log("Websocket error") })
   socket.on("ping", socket.pong)
-  return Bacon.fromEventTarget(socket, "message", function(message) { return message.data  })
+
+  return Bacon
+    .fromEventTarget(socket, "message", function(message) { return message.data  })
+    .map(JSON.parse)
 }
 
 var input = new midi.input()
@@ -72,9 +70,7 @@ var midiMessages =
 
 var messagesToHoumio = midiMessages
   .filter(isControlMessage)
-  .map(toHoumioLightState)
-  .map(toHoumioWebSocketMessage)
-  .map(JSON.stringify)
+  .map(toHoumioMessage)
 
 var messagesFromHoumio = houmioConnection(messagesToHoumio)
 
