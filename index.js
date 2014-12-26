@@ -12,16 +12,6 @@ if(siteKey == null || midiPort == null || lightId == null) {
 
 console.log("Controlling lightId", lightId);
 
-function putLightState(state) {
-  console.log("Putting state", state)
-  var url = "https://houm.herokuapp.com/api/site/" + siteKey + "/light/state"
-  request({ method: "PUT", url: url, body: state, json: true }, function (error, response, body) {
-    if(error) {
-      console.log("Failed putting light state to", state)
-    }
-  })
-}
-
 function isControlMessage(midiMessage) {
   return (midiMessage[0] >> 4) === 0xb
 }
