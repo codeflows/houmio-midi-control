@@ -3,10 +3,11 @@ var WebSocket = require("ws")
 var Bacon = require("baconjs")
 
 var siteKey = process.env.HORSELIGHTS_SITEKEY
-var lightId = process.argv[2]
+var midiPort = process.argv[2]
+var lightId = process.argv[3]
 
-if(siteKey == null || lightId == null) {
-  throw "Please provide site key in environment variable and light id as command line parameter"
+if(siteKey == null || midiPort == null || lightId == null) {
+  throw "usage: node index.js midiPort lightId (plus provide site key in env variable HORSELIGHTS_SITEKEY)"
 }
 
 console.log("Controlling lightId", lightId);
@@ -36,6 +37,13 @@ function toHoumioLightState(midiMessage) {
   }
 }
 
+function toHoumioWebSocketMessage(houmioLightState) {
+  return {
+    command: "set",
+    data: houmioLightState
+  }
+}
+
 // TODO error handling, reconnection etc
 function houmioConnection(messagesToHoumioStream) {
   var socket = new WebSocket("wss://houm.herokuapp.com")
@@ -45,6 +53,10 @@ function houmioConnection(messagesToHoumioStream) {
     socket.send(subscribe)
     Bacon.interval(3000).onValue(function() {
       socket.ping(null, {}, false)
+    })
+    messagesToHoumioStream.onValue(function(m) {
+      console.log("Send", m)
+      socket.send(m)
     })
   })
   socket.on("close", function() { console.log("Websocket closed") })
@@ -58,13 +70,16 @@ var input = new midi.input()
 var midiMessages =
   Bacon.fromEventTarget(input, "message", function(deltaTime, message) { return message })
 
-midiMessages
+var messagesToHoumio = midiMessages
   .filter(isControlMessage)
   .map(toHoumioLightState)
-  .throttle(500)
-  .onValue(putLightState)
+  .map(toHoumioWebSocketMessage)
+  .map(JSON.stringify)
 
-input.openPort(0)
+var messagesFromHoumio = houmioConnection(messagesToHoumio)
 
-houmioConnection(null)
-  .onValue(function(m) { console.log(m) })
+messagesFromHoumio.onValue(function(m) {
+  console.log("Received message from Houm.io", m)
+})
+
+input.openPort(Number(midiPort))
