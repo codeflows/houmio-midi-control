@@ -22,7 +22,7 @@ function readConfigurationJson() {
 
 function validateConfiguration(configuration) {
   if(configuration.siteKey == null) {
-    return new Bacon.Error("siteKey must be defined in config.json")
+    return new Bacon.Error("Please set \"siteKey\" in config.json")
   }
 
   var midiInputPorts = listMidiInputPorts()
@@ -30,7 +30,8 @@ function validateConfiguration(configuration) {
   if(midiInputPortNumber === -1) {
     return new Bacon.Error(
       "Configured MIDI port \"" + configuration.midiInputPortName + "\" not found!\n" +
-      "Available ports are:\n  " + midiInputPorts.join("\n  ")
+      "Set \"midiInputPortName\" to one of these values in config.json:\n  " +
+      midiInputPorts.join("\n  ")
     )
   }
   return {
@@ -93,7 +94,7 @@ configuration.onValue(function(configuration) {
     Bacon.fromEventTarget(midiInput, "message", function(deltaTime, message) { return message })
   var midiControlMessages = midiMessages.filter(isControlMessage)
 
-  if(process.argv[2] === "learn") {
+  if(configuration.pairings == null || configuration.pairings.length === 0 || process.argv[2] === "learn") {
     console.log("Midi learn mode!")
 
     console.log("Open Houm.io UI at https://houm.herokuapp.com/site/" + configuration.siteKey)
@@ -104,7 +105,7 @@ configuration.onValue(function(configuration) {
         .filter(function(message) { return message.command === 'newlightstate' })
         .map(function(message) { return message.data._id })
         .skipDuplicates()
-        .log("\nGreat! Now turn the MIDI controller knob you'd like to assign to light with id")
+        .log("\nNow turn the MIDI controller knob you'd like to assign to light with id")
 
     var midiControllerTurned = midiControlMessages.map(function(midiMessage) {
       var controllerNumber = midiMessage[1]
@@ -116,12 +117,21 @@ configuration.onValue(function(configuration) {
         .sampledBy(midiControllerTurned, function(a, b) { return [a, b] })
         .skipDuplicates(_.isEqual)
 
-    pairing.onValue(function(a) {
-      console.log("Paired light " + a[0] + " with MIDI controller " + a[1])
+    pairing.onValue(function(pairing) {
+      var lightId = pairing[0]
+      var midiControllerNumber = pairing[1]
+      console.log("Paired light " + lightId + " with MIDI controller " + midiControllerNumber)
+      readConfigurationJson().onValue(function(configuration) {
+        // FIXME
+        configuration.pairings = configuration.pairings || {}
+        configuration.pairings[midiControllerNumber.toString()] = lightId
+        fs.writeFileSync("config.json", JSON.stringify(configuration))
+      })
     })
 
   } else {
-    console.log("Controlling Houm.io lights using MIDI", configuration)
+    console.log("Controlling Houm.io lights using MIDI")
+    console.log("(Hint: run \"node index.js learn\" to assign MIDI controllers to lights!)")
     var messagesToHoumio = midiControlMessages
       .filter(function(message) {
         var controllerNumber = message[1]
