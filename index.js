@@ -14,12 +14,13 @@ function listMidiInputPorts() {
   return inputs
 }
 
-var configurationFile =
-  Bacon
+function readConfigurationJson() {
+  return Bacon
     .fromNodeCallback(fs.readFile, "config.json")
     .map(JSON.parse)
+}
 
-var configuration = configurationFile.flatMap(function(configuration) {
+function validateConfiguration(configuration) {
   if(configuration.siteKey == null || configuration.lightId == null) {
     return new Bacon.Error("siteKey and lightId must be defined in config.json")
   }
@@ -37,11 +38,13 @@ var configuration = configurationFile.flatMap(function(configuration) {
     lightId: configuration.lightId,
     midiInputPortNumber: midiInputPortNumber
   }
-})
+}
+
+var configuration = readConfigurationJson().flatMap(validateConfiguration)
 
 configuration.onError(function(error) {
   console.log("ERROR:", error)
-  process.exit(1);
+  process.exit(1)
 })
 
 function isControlMessage(midiMessage) {
